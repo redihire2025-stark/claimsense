@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm audit *)",
+      "Bash(npm view *)",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{try{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.vulnerabilities['react-router'],null,2\\)\\)}catch\\(e\\){console.log\\(d\\)}}\\)\")",
+      "Bash(npm uninstall *)",
+      "Bash(grep -rln \"App.tsx\\\\|from \\\\\"\\\\\\\\./App\\\\\"\\\\|from './App'\" src --include=*.tsx --include=*.ts)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5174/)",
+      "Bash(curl -s http://localhost:5174/src/app/App.tsx)",
+      "Bash(powershell -NoProfile -Command \"Get-CimInstance Win32_Process -Filter \\\\\"CommandLine like '%vite%' and CommandLine like '%5174%'\\\\\" | Select -ExpandProperty ProcessId\")",
+      "PowerShell(Get-Process -Id 21344)",
+      "PowerShell(Stop-Process -Id 21344 -Force -Confirm:$false)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5174 -State Listen -ErrorAction SilentlyContinue)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(curl -s http://localhost:5173/)",
+      "Bash(git --version)",
+      "Bash(git config *)",
+      "Read(//c/Users/adiru/.ssh/**)",
+      "Bash(ssh -o BatchMode=yes -o ConnectTimeout=5 -T git@github.com)",
+      "Bash(git credential *)"
+    ]
+  }
+}

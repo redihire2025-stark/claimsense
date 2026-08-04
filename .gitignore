@@ -1,0 +1,26 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Contains a leaked GitHub token — do not commit
+push_to_github.py
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
