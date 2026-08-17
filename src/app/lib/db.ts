@@ -1,13 +1,17 @@
 import { neon } from '@neondatabase/serverless';
+import bcrypt from 'bcryptjs';
 import type { ClaimItem } from './claimsStorage';
 
 // Initialize Neon SQL client using environment variable
 const dbUrl = import.meta.env.VITE_NEON_DATABASE_URL || '';
 const sql = neon(dbUrl);
 
+export const OAUTH_PASSWORD_MARKER = 'OAUTH_GOOGLE';
+
 // 1. Insert a new user into Neon DB on Sign Up
-export async function registerUserInNeon(fullName: string, email: string, passwordHash: string, role: string) {
+export async function registerUserInNeon(fullName: string, email: string, password: string, role: string) {
   try {
+    const passwordHash = password === OAUTH_PASSWORD_MARKER ? password : await bcrypt.hash(password, 10);
     const result = await sql`
       INSERT INTO users (full_name, email, password_hash, role)
       VALUES (${fullName}, ${email}, ${passwordHash}, ${role})
@@ -17,6 +21,16 @@ export async function registerUserInNeon(fullName: string, email: string, passwo
   } catch (error: any) {
     console.error("Neon DB error:", error);
     return { success: false, error: error.message };
+  }
+}
+
+// Verify a plaintext password against the stored bcrypt hash
+export async function verifyUserPassword(password: string, passwordHash: string): Promise<boolean> {
+  if (!passwordHash || passwordHash === OAUTH_PASSWORD_MARKER) return false;
+  try {
+    return await bcrypt.compare(password, passwordHash);
+  } catch {
+    return false;
   }
 }
 

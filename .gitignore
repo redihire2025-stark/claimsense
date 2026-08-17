@@ -24,3 +24,7 @@ push_to_github.py
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local Netlify folder
+.netlify
+deno.lock

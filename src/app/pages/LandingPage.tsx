@@ -107,7 +107,10 @@ export function LandingPage({ onEnter }: { onEnter: (mode?: AuthMode) => void })
               {["Features", "Product", "Pricing", "Enterprise"].map((item) => (
                 <a key={item} href="#" className="text-sm font-medium text-muted-foreground py-1">{item}</a>
               ))}
-              <button onClick={() => onEnter("signup")} className="mt-2 text-sm font-semibold bg-primary text-white px-4 py-2 rounded-lg">Get started free</button>
+              <div className="flex items-center gap-2 mt-2">
+                <button onClick={() => onEnter("signin")} className="flex-1 text-sm font-semibold text-foreground border border-border px-4 py-2 rounded-lg">Sign in</button>
+                <button onClick={() => onEnter("signup")} className="flex-1 text-sm font-semibold bg-primary text-white px-4 py-2 rounded-lg">Get started free</button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

@@ -1,16 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft, Eye, EyeOff, ShieldCheck, Sparkles, CheckCircle2,
-  Lock, Mail, User, Phone, ArrowRight, Building2, UserCheck, Users, KeyRound
+  Lock, Mail, User, Phone, ArrowRight, Building2, UserCheck, Users, KeyRound, MailCheck
 } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
 import { BrandLogo } from "../components/Logo";
+import { AnimatedOtpInput } from "../components/AnimatedOtpInput";
 import type { AuthMode, UserProfile } from "../types";
-import { registerUserInNeon, findUserInNeon } from "../lib/db";
+import { registerUserInNeon, findUserInNeon, verifyUserPassword, OAUTH_PASSWORD_MARKER } from "../lib/db";
 import { sendOtpViaResend } from "../lib/email";
+
+const OTP_RESEND_COOLDOWN = 30;
 
 interface AuthPageProps {
   initialMode?: AuthMode;
@@ -46,6 +49,20 @@ export function AuthPage({ initialMode = "signin", onSuccess, onBackToHome }: Au
   const [activeOtpCode, setActiveOtpCode] = useState("");
   const [enteredOtp, setEnteredOtp] = useState("");
   const [pendingUser, setPendingUser] = useState<UserProfile | null>(null);
+  const [otpStatus, setOtpStatus] = useState<"idle" | "error" | "success">("idle");
+  const [otpDelivered, setOtpDelivered] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  // Anchors the email thread for this OTP attempt — a fresh id per sign-in/sign-up
+  // submit keeps each attempt its own conversation in the inbox; "Resend" reuses
+  // the same id so it chains onto that thread instead of starting a new one.
+  const [otpThreadId, setOtpThreadId] = useState("");
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const handleSignInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,39 +72,59 @@ export function AuthPage({ initialMode = "signin", onSuccess, onBackToHome }: Au
     }
     setLoading(true);
 
-    // Try finding user in Neon Database
+    // Look up the account and actually validate the password before doing anything else
     const neonUser = await findUserInNeon(signInEmail);
 
-    const userProfile: UserProfile = neonUser ? {
+    if (!neonUser) {
+      setLoading(false);
+      toast.error("No account found with this email. Please create one first.");
+      return;
+    }
+
+    if (neonUser.password_hash === OAUTH_PASSWORD_MARKER) {
+      setLoading(false);
+      toast.error("This account uses Google Sign-In. Please continue with Google instead.");
+      return;
+    }
+
+    const passwordValid = await verifyUserPassword(signInPassword, neonUser.password_hash);
+    if (!passwordValid) {
+      setLoading(false);
+      toast.error("Incorrect password. Please try again.");
+      return;
+    }
+
+    const userProfile: UserProfile = {
       name: neonUser.full_name,
       email: neonUser.email,
       role: neonUser.role || "family",
       plan: neonUser.role === "enterprise" ? "Enterprise TPA" : neonUser.role === "family" ? "Family Pro" : "Individual",
-    } : {
-      name: signInEmail.split("@")[0] || "ClaimSense User",
-      email: signInEmail,
-      role: "family",
-      plan: "Family Pro",
     };
 
     // Generate 6-digit verification OTP
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const threadId = crypto.randomUUID();
+    setOtpThreadId(threadId);
     setActiveOtpCode(generatedOtp);
     setOtpEmail(signInEmail);
     setPendingUser(userProfile);
-
-    // Send OTP via Resend API
-    const emailRes = await sendOtpViaResend(signInEmail, generatedOtp);
-    setLoading(false);
-
-    if (emailRes.success) {
-      toast.success(`Verification OTP (${generatedOtp}) sent to ${signInEmail} via Resend!`);
-    } else {
-      toast.info(`Verification OTP code: ${generatedOtp}`);
-    }
-
+    setOtpStatus("idle");
     setEnteredOtp("");
     setShowOtpModal(true);
+    setResendCooldown(OTP_RESEND_COOLDOWN);
+
+    // Send OTP via Resend API (server-side relay)
+    setOtpSending(true);
+    const emailRes = await sendOtpViaResend(signInEmail, generatedOtp, threadId, false);
+    setOtpSending(false);
+    setLoading(false);
+    setOtpDelivered(emailRes.success);
+
+    if (emailRes.success) {
+      toast.success(`Verification code sent to ${signInEmail}`);
+    } else {
+      toast.info(`Couldn't email the code — showing it below instead.`);
+    }
   };
 
   const handleSignUpSubmit = async (e: React.FormEvent) => {
@@ -102,10 +139,26 @@ export function AuthPage({ initialMode = "signin", onSuccess, onBackToHome }: Au
     }
     setLoading(true);
 
-    // 1. Generate 6-digit verification OTP
+    // 1. Save user to Neon DB first — bail out if the email is already registered
+    const registerRes = await registerUserInNeon(fullName, signUpEmail, signUpPassword, role);
+    if (!registerRes.success) {
+      setLoading(false);
+      if (registerRes.error?.includes("duplicate key") || registerRes.error?.includes("users_email_key")) {
+        toast.error("An account with this email already exists. Try signing in instead.");
+      } else {
+        toast.error("Couldn't create your account. Please try again.");
+      }
+      return;
+    }
+
+    // 2. Generate 6-digit verification OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const threadId = crypto.randomUUID();
+    setOtpThreadId(threadId);
     setActiveOtpCode(otpCode);
     setOtpEmail(signUpEmail);
+    setOtpStatus("idle");
+    setEnteredOtp("");
 
     const newUserProfile: UserProfile = {
       name: fullName,
@@ -115,48 +168,57 @@ export function AuthPage({ initialMode = "signin", onSuccess, onBackToHome }: Au
     };
     setPendingUser(newUserProfile);
 
-    // 2. Save user to Neon DB
-    await registerUserInNeon(fullName, signUpEmail, signUpPassword, role);
+    setShowOtpModal(true);
+    setResendCooldown(OTP_RESEND_COOLDOWN);
 
-    // 3. Dispatch email via Resend API
-    const emailRes = await sendOtpViaResend(signUpEmail, otpCode);
+    // 3. Dispatch email via Resend API (server-side relay)
+    setOtpSending(true);
+    const emailRes = await sendOtpViaResend(signUpEmail, otpCode, threadId, false);
+    setOtpSending(false);
     setLoading(false);
+    setOtpDelivered(emailRes.success);
 
     if (emailRes.success) {
-      toast.success(`Verification OTP (${otpCode}) sent to ${signUpEmail} via Resend!`);
+      toast.success(`Verification code sent to ${signUpEmail}`);
     } else {
-      toast.info(`Verification OTP code: ${otpCode}`);
+      toast.info(`Couldn't email the code — showing it below instead.`);
     }
-
-    setEnteredOtp("");
-    setShowOtpModal(true);
   };
 
   const handleVerifyOtpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!enteredOtp || enteredOtp.trim() !== activeOtpCode.trim()) {
+      setOtpStatus("error");
       toast.error("Invalid OTP code. Please check your email and try again.");
       return;
     }
 
+    setOtpStatus("success");
     toast.success("OTP verified successfully! Welcome to ClaimSense.");
-    setShowOtpModal(false);
-    if (pendingUser) {
-      onSuccess(pendingUser);
-    }
+    setTimeout(() => {
+      setShowOtpModal(false);
+      if (pendingUser) {
+        onSuccess(pendingUser);
+      }
+    }, 700);
   };
 
   const handleResendOtp = async () => {
+    if (resendCooldown > 0 || otpSending) return;
     const newCode = Math.floor(100000 + Math.random() * 900000).toString();
     setActiveOtpCode(newCode);
-    toast.loading("Sending fresh OTP via Resend...");
-    const emailRes = await sendOtpViaResend(otpEmail, newCode);
-    toast.dismiss();
+    setEnteredOtp("");
+    setOtpStatus("idle");
+    setOtpSending(true);
+    setResendCooldown(OTP_RESEND_COOLDOWN);
+    const emailRes = await sendOtpViaResend(otpEmail, newCode, otpThreadId, true);
+    setOtpSending(false);
+    setOtpDelivered(emailRes.success);
 
     if (emailRes.success) {
-      toast.success(`Fresh OTP sent to ${otpEmail}! Check your inbox.`);
+      toast.success(`Fresh code sent to ${otpEmail}`);
     } else {
-      toast.error(`Resend Error: ${emailRes.error}`);
+      toast.error(`Couldn't send email — showing the code below instead.`);
     }
   };
 
@@ -203,7 +265,7 @@ export function AuthPage({ initialMode = "signin", onSuccess, onBackToHome }: Au
     }
     setLoading(true);
     const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    const emailRes = await sendOtpViaResend(forgotEmail, resetOtp);
+    const emailRes = await sendOtpViaResend(forgotEmail, resetOtp, crypto.randomUUID(), false);
     setLoading(false);
 
     if (emailRes.success) {
@@ -429,7 +491,7 @@ export function AuthPage({ initialMode = "signin", onSuccess, onBackToHome }: Au
                             if (email) {
                               const existing = await findUserInNeon(email);
                               if (!existing) {
-                                await registerUserInNeon(name, email, "OAUTH_GOOGLE", "family");
+                                await registerUserInNeon(name, email, OAUTH_PASSWORD_MARKER, "family");
                               }
                             }
 
@@ -658,69 +720,92 @@ export function AuthPage({ initialMode = "signin", onSuccess, onBackToHome }: Au
       {/* 6-Digit OTP Verification Modal */}
       <AnimatePresence>
         {showOtpModal && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
             <motion.div
               initial={{ scale: 0.92, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.92, opacity: 0, y: 10 }}
-              className="bg-slate-800 border border-slate-700 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 text-slate-100 relative overflow-hidden"
+              className="bg-slate-800 border border-slate-700 rounded-2xl p-5 sm:p-8 max-w-md w-full shadow-2xl shadow-blue-950/50 space-y-5 text-slate-100 relative overflow-hidden"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+              {/* Ambient glow accents */}
+              <div className="absolute -top-16 -right-16 w-40 h-40 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-16 -left-16 w-40 h-40 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="flex items-center gap-3 relative">
+                <motion.div
+                  initial={{ scale: 0, rotate: -20 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 18 }}
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0"
+                >
                   <ShieldCheck size={22} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">Enter 6-Digit Verification Code</h3>
-                  <p className="text-xs text-slate-400">Sent via Resend to <span className="text-blue-400 font-medium">{otpEmail}</span></p>
+                </motion.div>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-bold text-white leading-tight">Enter 6-Digit Verification Code</h3>
+                  <p className="text-[11px] sm:text-xs text-slate-400 flex items-center gap-1.5 truncate">
+                    {otpSending ? (
+                      <>
+                        <span className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                        Sending to <span className="text-blue-400 font-medium">{otpEmail}</span>...
+                      </>
+                    ) : otpDelivered ? (
+                      <>
+                        <MailCheck size={13} className="text-emerald-400" />
+                        Sent to <span className="text-blue-400 font-medium">{otpEmail}</span>
+                      </>
+                    ) : (
+                      <>For <span className="text-blue-400 font-medium">{otpEmail}</span></>
+                    )}
+                  </p>
                 </div>
               </div>
 
               <form onSubmit={handleVerifyOtpSubmit} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-300">Enter OTP Code</label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    required
-                    autoFocus
+                <div className="flex flex-col items-center gap-1 py-2">
+                  <AnimatedOtpInput
                     value={enteredOtp}
-                    onChange={(e) => setEnteredOtp(e.target.value)}
-                    placeholder="e.g. 482910"
-                    className="w-full bg-slate-900 border border-blue-500/50 rounded-xl px-4 py-3 text-center text-2xl font-bold tracking-[8px] text-blue-300 placeholder-slate-600 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20"
+                    onChange={(v) => {
+                      setEnteredOtp(v);
+                      if (otpStatus === "error") setOtpStatus("idle");
+                    }}
+                    status={otpStatus}
                   />
-                  {activeOtpCode && (
-                    <div className="mt-2 p-2 rounded-lg bg-blue-950/60 border border-blue-500/30 flex items-center justify-between text-xs">
-                      <span className="text-slate-300 text-[11px]">💡 Code: <strong className="font-mono text-amber-300">{activeOtpCode}</strong></span>
-                      <button
-                        type="button"
-                        onClick={() => setEnteredOtp(activeOtpCode)}
-                        className="text-[11px] font-semibold text-blue-300 hover:text-white bg-blue-600/40 hover:bg-blue-600/60 px-2 py-0.5 rounded border border-blue-400/30 transition-colors"
-                      >
-                        Auto-fill Code
-                      </button>
-                    </div>
-                  )}
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-700/60">
+                {!otpDelivered && !otpSending && activeOtpCode && (
+                  <div className="p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between text-xs">
+                    <span className="text-slate-300 text-[11px] leading-snug">⚠️ Email delivery unavailable — dev code: <strong className="font-mono text-amber-300">{activeOtpCode}</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => setEnteredOtp(activeOtpCode)}
+                      className="text-[11px] font-semibold text-blue-300 hover:text-white bg-blue-600/40 hover:bg-blue-600/60 px-2 py-1 rounded border border-blue-400/30 transition-colors shrink-0 self-start sm:self-auto"
+                    >
+                      Auto-fill
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-slate-700/60">
                   <button
                     type="button"
                     onClick={handleResendOtp}
-                    className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                    disabled={resendCooldown > 0 || otpSending}
+                    className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors disabled:text-slate-500 disabled:cursor-not-allowed text-center sm:text-left"
                   >
-                    Resend Code via Resend
+                    {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}
                   </button>
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => setShowOtpModal(false)}
-                      className="px-3.5 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-colors"
+                      className="flex-1 sm:flex-none px-3.5 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-all"
+                      disabled={enteredOtp.length !== 6}
+                      className="flex-1 sm:flex-none px-5 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Verify & Sign In
                     </button>
