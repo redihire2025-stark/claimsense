@@ -1,19 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Bot, Send, Mic } from "lucide-react";
+import { Bot, Send, Mic, Sparkles } from "lucide-react";
 import { stagger, fadeUp } from "../lib/animations";
-import { initialMessages, suggestedPrompts } from "../lib/mock-data";
+import { initialMessages, suggestedPrompts, ChatMessage } from "../lib/mock-data";
+import { getLatestAuditReport } from "../lib/claimsStorage";
 
 export function AICopilot() {
-  const [messages, setMessages] = useState(initialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const activeAudit = getLatestAuditReport();
+  const activeBillPrompt = `Analyze ${activeAudit.docName} (${activeAudit.patientName} · ₹${activeAudit.totalSavings.toLocaleString("en-IN")} savings)`;
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
+  const activeBillReply = `I've analyzed your scanned document **${activeAudit.docName}** for **${activeAudit.patientName}** at **${activeAudit.hospitalName}** (Total Billed: **₹${activeAudit.totalCharged.toLocaleString("en-IN")}**).\n\n**Total Recoverable Overcharges:** ₹${activeAudit.totalSavings.toLocaleString("en-IN")} across ${activeAudit.flaggedCount} flagged line items.\n\n**Key Audit Breakdown:**\n${activeAudit.lineItems.filter(i => i.flagged).map((item, idx) => `${idx + 1}. **${item.item}:** Billed ₹${item.hospitalRate.toLocaleString("en-IN")} vs CGHS rate ₹${item.benchmarkRate.toLocaleString("en-IN")} → **₹${item.saving.toLocaleString("en-IN")} overcharge**\n   _${item.issue || "Exceeds rate cap"}_`).join("\n\n")}\n\n**Recommended IRDAI Action:**\nPresent this verified line-item audit summary to your hospital billing desk or dispute it with your TPA. Would you like me to draft a formal appeal letter for this bill?`;
+
   const responses: Record<string, string> = {
-    default: "I've analysed your question against your active claims and policy documents. Based on IRDAI Regulation 2016 (Amendment 2023) and your HDFC ERGO policy terms:\n\n**Key finding:** The situation falls under a commonly disputed category where insurers frequently misapply exclusion clauses.\n\n**Recommended action:** File a formal written complaint within 15 days citing Circular No. IRDA/HLT/REG/CIR/022/01/2020. Would you like me to draft that letter now?",
+    default: "I've analysed your question against your active claims and policy documents. Based on IRDAI Regulation 2016 (Amendment 2023) and your policy terms:\n\n**Key finding:** The situation falls under a commonly disputed category where insurers frequently misapply exclusion clauses.\n\n**Recommended action:** File a formal written complaint within 15 days citing Circular No. IRDA/HLT/REG/CIR/022/01/2020. Would you like me to draft that letter now?",
     reject: "I've reviewed claim CLM-2024-003 for Anita Patel (₹2,67,800 · Max Healthcare).\n\n**Rejection code:** Pre-existing condition exclusion — IRDAI Code 3.14(b)\n\n**Plain English:** The insurer claims Type 2 Diabetes complications existed before your policy start date. However, your policy has crossed the **2-year waiting period**, making this legally challengeable.\n\n**Recovery probability:** 78% based on similar cases.\n\n**Recommended steps:**\n1. Request the full rejection letter within 7 days\n2. Obtain HbA1c records showing diagnosis date\n3. File an appeal citing IRDAI Circular 11/2023\n\nShall I draft the appeal letter?",
     appeal: "Here is a draft appeal letter for Anita Patel's claim CLM-2024-003:\n\n---\n**To: The Grievance Officer**\nICICI Lombard General Insurance Co. Ltd.\n\n**Re: Appeal against rejection of Claim — Policy No. [Your Policy No.]**\n\nDear Sir/Madam,\n\nI formally appeal the rejection of my hospitalisation claim at Max Healthcare (Admission: 12 July 2024).\n\nThe rejection cites pre-existing condition exclusion under Clause 3.14(b). However, per IRDAI (Health Insurance) Regulations 2016 (Amendment 2023), the 24-month waiting period has been satisfied.\n\nI enclose:\n1. Original discharge summary\n2. Medical records establishing diagnosis date\n3. Premium payment receipts confirming continuous coverage\n\nI request reconsideration within 30 days as mandated by IRDAI Regulation 17(1).\n\nYours faithfully,\nAnita Patel\n\n---\n\nShall I personalise this further or convert it to PDF?",
   };
@@ -26,10 +32,17 @@ export function AICopilot() {
     setLoading(true);
     setTimeout(() => {
       const lower = msg.toLowerCase();
-      const reply = lower.includes("reject") ? responses.reject : lower.includes("appeal") || lower.includes("draft") ? responses.appeal : responses.default;
+      let reply = responses.default;
+      if (lower.includes("analyze") || lower.includes("sunrise") || lower.includes("arjun") || lower.includes("scanned") || lower.includes("latest") || lower.includes(activeAudit.docName.toLowerCase())) {
+        reply = activeBillReply;
+      } else if (lower.includes("reject")) {
+        reply = responses.reject;
+      } else if (lower.includes("appeal") || lower.includes("draft")) {
+        reply = responses.appeal;
+      }
       setMessages((m) => [...m, { role: "assistant", content: reply }]);
       setLoading(false);
-    }, 1400);
+    }, 1200);
   };
 
   return (
@@ -47,6 +60,19 @@ export function AICopilot() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="flex-1 bg-card border border-border rounded-xl flex flex-col overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex items-center gap-2 overflow-x-auto flex-shrink-0">
           <span className="text-xs text-muted-foreground font-medium flex-shrink-0">Try:</span>
+          
+          <motion.button
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={() => send(activeBillPrompt)}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
+            className="text-xs font-semibold border border-violet-300 dark:border-violet-700 rounded-full px-3 py-1 bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 hover:bg-violet-100 transition-colors flex items-center gap-1.5 flex-shrink-0 shadow-sm"
+          >
+            <Sparkles size={13} className="text-violet-600 dark:text-violet-400" />
+            {activeBillPrompt}
+          </motion.button>
+
           {suggestedPrompts.map((p, i) => (
             <motion.button
               key={p}

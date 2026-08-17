@@ -2,9 +2,24 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { fadeUp } from "../lib/animations";
 import { Badge } from "../components/Badge";
+import type { UserProfile } from "../types";
 
-export function SettingsView() {
+function getInitials(name?: string) {
+  if (!name) return "U";
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+export function SettingsView({ user }: { user?: UserProfile | null }) {
   const [notifications, setNotifications] = useState({ email: true, sms: true, whatsapp: false, push: true });
+  
+  const userName = user?.name || "Suvarna Raju";
+  const userEmail = user?.email || "suvarnaraju494@gmail.com";
+  const userPlan = user?.plan || "Family Pro";
+
   return (
     <div className="flex flex-col gap-5 max-w-2xl">
       <motion.div variants={fadeUp} initial="hidden" animate="show">
@@ -15,13 +30,17 @@ export function SettingsView() {
         <motion.div key="profile" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-border"><h2 className="font-bold text-foreground text-sm">Profile</h2></div>
           <div className="p-5 flex items-center gap-4">
-            <motion.div whileHover={{ scale: 1.05, rotate: 3 }} className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center cursor-pointer">
-              <span className="text-white text-xl font-bold">PS</span>
-            </motion.div>
+            {user?.avatar ? (
+              <img src={user.avatar} alt={userName} className="w-14 h-14 rounded-full object-cover border-2 border-primary/30" />
+            ) : (
+              <motion.div whileHover={{ scale: 1.05, rotate: 3 }} className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center cursor-pointer">
+                <span className="text-white text-xl font-bold">{getInitials(userName)}</span>
+              </motion.div>
+            )}
             <div>
-              <div className="font-bold text-foreground">Priya Sharma</div>
-              <div className="text-sm text-muted-foreground">priya.sharma@email.com · +91 98765 43210</div>
-              <div className="text-xs text-muted-foreground mt-0.5">Individual Plan · Member since Jan 2024</div>
+              <div className="font-bold text-foreground">{userName}</div>
+              <div className="text-sm text-muted-foreground">{userEmail}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{userPlan} · Active Member</div>
             </div>
             <motion.button whileHover={{ scale: 1.02 }} className="ml-auto text-sm font-semibold border border-border px-4 py-2 rounded-lg hover:bg-muted transition-colors">Edit profile</motion.button>
           </div>

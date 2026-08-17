@@ -6,8 +6,9 @@ import {
 } from "lucide-react";
 import { BrandLogo, LogoMark } from "../components/Logo";
 import { fadeUp, stagger, scaleIn } from "../lib/animations";
+import type { AuthMode } from "../types";
 
-export function LandingPage({ onEnter }: { onEnter: () => void }) {
+export function LandingPage({ onEnter }: { onEnter: (mode?: AuthMode) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const features = [
@@ -83,10 +84,10 @@ export function LandingPage({ onEnter }: { onEnter: () => void }) {
             ))}
           </nav>
           <div className="hidden md:flex items-center gap-3">
-            <motion.button onClick={onEnter} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors px-4 py-1.5">
+            <motion.button onClick={() => onEnter("signin")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors px-4 py-1.5">
               Sign in
             </motion.button>
-            <motion.button onClick={onEnter} whileHover={{ scale: 1.03, backgroundColor: "#1640c8" }} whileTap={{ scale: 0.97 }} className="text-sm font-semibold bg-primary text-white px-4 py-1.5 rounded-lg transition-colors shadow-lg shadow-blue-200">
+            <motion.button onClick={() => onEnter("signup")} whileHover={{ scale: 1.03, backgroundColor: "#1640c8" }} whileTap={{ scale: 0.97 }} className="text-sm font-semibold bg-primary text-white px-4 py-1.5 rounded-lg transition-colors shadow-lg shadow-blue-200">
               Get started free
             </motion.button>
           </div>
@@ -106,7 +107,7 @@ export function LandingPage({ onEnter }: { onEnter: () => void }) {
               {["Features", "Product", "Pricing", "Enterprise"].map((item) => (
                 <a key={item} href="#" className="text-sm font-medium text-muted-foreground py-1">{item}</a>
               ))}
-              <button onClick={onEnter} className="mt-2 text-sm font-semibold bg-primary text-white px-4 py-2 rounded-lg">Get started free</button>
+              <button onClick={() => onEnter("signup")} className="mt-2 text-sm font-semibold bg-primary text-white px-4 py-2 rounded-lg">Get started free</button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -129,10 +130,10 @@ export function LandingPage({ onEnter }: { onEnter: () => void }) {
               ClaimSense AI audits your hospital bills, decodes insurance rejections, generates legally-sound appeal letters, and tracks every deadline — so you recover what you are owed.
             </motion.p>
             <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3">
-              <motion.button onClick={onEnter} whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }} className="flex items-center justify-center gap-2 bg-primary text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors text-sm shadow-lg shadow-blue-200">
+              <motion.button onClick={() => onEnter("signup")} whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }} className="flex items-center justify-center gap-2 bg-primary text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors text-sm shadow-lg shadow-blue-200">
                 Start recovering for free <ArrowRight size={15} />
               </motion.button>
-              <motion.button onClick={onEnter} whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }} className="flex items-center justify-center gap-2 bg-card border border-border text-foreground font-semibold px-6 py-3 rounded-xl hover:bg-muted transition-colors text-sm">
+              <motion.button onClick={() => onEnter("signin")} whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }} className="flex items-center justify-center gap-2 bg-card border border-border text-foreground font-semibold px-6 py-3 rounded-xl hover:bg-muted transition-colors text-sm">
                 <Eye size={15} /> View live demo
               </motion.button>
             </motion.div>
@@ -344,7 +345,7 @@ export function LandingPage({ onEnter }: { onEnter: () => void }) {
                 ))}
               </ul>
               <motion.button
-                onClick={onEnter}
+                onClick={() => onEnter("signup")}
                 whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                 className={`mt-auto w-full py-2.5 rounded-xl font-semibold text-sm transition-colors ${plan.highlight ? "bg-white text-primary hover:bg-blue-50" : "bg-primary text-white hover:bg-blue-700"}`}
               >
@@ -399,7 +400,7 @@ export function LandingPage({ onEnter }: { onEnter: () => void }) {
           <motion.p variants={fadeUp} className="text-blue-100 mb-8 text-base">Upload your first bill in under 60 seconds. No technical knowledge required.</motion.p>
           <motion.button
             variants={fadeUp}
-            onClick={onEnter}
+            onClick={() => onEnter("signup")}
             whileHover={{ scale: 1.04, y: -2, boxShadow: "0 16px 40px rgba(0,0,0,0.2)" }}
             whileTap={{ scale: 0.97 }}
             className="inline-flex items-center gap-2 bg-white text-primary font-bold px-8 py-3.5 rounded-xl text-sm shadow-xl"

@@ -1,28 +1,44 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plus, Search, MoreHorizontal, FileText } from "lucide-react";
+import { toast } from "sonner";
 import type { AppTab } from "../types";
 import { fadeUp, stagger } from "../lib/animations";
 import { fmtINR, fmtShort } from "../lib/format";
-import { claims } from "../lib/mock-data";
+import { getClaimsList, generateAuditFromFields, setActiveAuditReport, ClaimItem } from "../lib/claimsStorage";
 import { Badge } from "../components/Badge";
 
 export function ClaimsView({ onNavigate }: { onNavigate: (t: AppTab) => void }) {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
 
-  const filtered = claims.filter((c) => {
+  const claimsList = getClaimsList();
+  const filtered = claimsList.filter((c) => {
     const matchSearch = c.patient.toLowerCase().includes(search.toLowerCase()) || c.id.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === "all" || c.status === filterStatus;
     return matchSearch && matchStatus;
   });
+
+  const handleClaimClick = (claim: ClaimItem) => {
+    const fields = [
+      { label: "Patient Name", value: claim.patient },
+      { label: "Hospital Name", value: claim.hospital },
+      { label: "Total Billed Amount", value: `₹${claim.amount.toLocaleString()}` },
+      { label: "Claim ID", value: claim.id },
+    ];
+    const docName = `${claim.id}_${claim.hospital.split(" ")[0]}_Bill.pdf`;
+    const report = generateAuditFromFields(docName, fields);
+    setActiveAuditReport(report);
+    toast.info(`Opening audit report for ${claim.id}...`);
+    onNavigate("auditor");
+  };
 
   return (
     <div className="flex flex-col gap-5">
       <motion.div variants={stagger(0.08)} initial="hidden" animate="show" className="flex items-center justify-between">
         <motion.div variants={fadeUp}>
           <h1 className="text-xl font-bold text-foreground">Claims</h1>
-          <p className="text-sm text-muted-foreground">{claims.length} total claims · {claims.filter(c => c.savings > 0).length} with savings recovered</p>
+          <p className="text-sm text-muted-foreground">{claimsList.length} total claims · {claimsList.filter(c => c.savings > 0).length} with savings recovered</p>
         </motion.div>
         <motion.button variants={fadeUp} onClick={() => onNavigate("ocr")} whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }} className="flex items-center gap-2 bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
           <Plus size={14} /> New Claim
@@ -51,9 +67,10 @@ export function ClaimsView({ onNavigate }: { onNavigate: (t: AppTab) => void }) 
           {filtered.map((c, i) => (
             <motion.div
               key={c.id}
+              onClick={() => handleClaimClick(c)}
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}
               transition={{ delay: i * 0.05 }}
-              className="bg-card border border-border rounded-xl p-4"
+              className="bg-card border border-border rounded-xl p-4 cursor-pointer hover:border-primary/50 transition-all"
             >
               <div className="flex items-start justify-between mb-2.5 gap-2">
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -116,7 +133,7 @@ export function ClaimsView({ onNavigate }: { onNavigate: (t: AppTab) => void }) 
             <tbody className="divide-y divide-border">
               <AnimatePresence mode="popLayout">
                 {filtered.map((c, i) => (
-                  <motion.tr key={c.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ delay: i * 0.04 }} whileHover={{ backgroundColor: "rgba(0,0,0,0.018)" }} className="cursor-pointer">
+                  <motion.tr key={c.id} onClick={() => handleClaimClick(c)} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ delay: i * 0.04 }} whileHover={{ backgroundColor: "rgba(0,0,0,0.018)" }} className="cursor-pointer">
                     <td className="px-5 py-3.5"><span className="font-mono text-xs font-medium text-muted-foreground">{c.id}</span></td>
                     <td className="px-5 py-3.5">
                       <div className="font-semibold text-foreground">{c.patient}</div>
@@ -147,7 +164,7 @@ export function ClaimsView({ onNavigate }: { onNavigate: (t: AppTab) => void }) 
           </div>
         )}
         <div className="px-5 py-3.5 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-          <span>Showing {filtered.length} of {claims.length} claims</span>
+          <span>Showing {filtered.length} of {claimsList.length} claims</span>
           <div className="flex items-center gap-2">
             {["Previous", "Next"].map((l) => (
               <motion.button key={l} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95 }} className="px-3 py-1.5 rounded border border-border hover:bg-muted transition-colors font-medium">{l}</motion.button>
