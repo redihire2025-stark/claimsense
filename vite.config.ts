@@ -33,4 +33,20 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
+  build: {
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          pdf: ['jspdf', 'jspdf-autotable'],
+          icons: ['lucide-react'],
+        },
+      },
+    },
+  },
 })

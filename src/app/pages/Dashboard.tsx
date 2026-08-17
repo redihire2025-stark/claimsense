@@ -6,13 +6,15 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
-import type { AppTab } from "../types";
+import type { AppTab, UserProfile } from "../types";
 import { fadeUp, stagger } from "../lib/animations";
 import { fmtShort } from "../lib/format";
 import { chartTooltipStyle, pieTooltipFormatter } from "../lib/chart-utils";
-import { savingsData, claimStatusData, claims, activityFeed } from "../lib/mock-data";
+import { savingsData, claimStatusData, activityFeed } from "../lib/mock-data";
+import { getClaimsList, generateAuditFromFields, setActiveAuditReport, ClaimItem } from "../lib/claimsStorage";
 import { Badge } from "../components/Badge";
 import { KPICard } from "../components/KPICard";
+import { toast } from "sonner";
 
 function SavingsTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -24,12 +26,29 @@ function SavingsTooltip({ active, payload, label }: any) {
   );
 }
 
-export function Dashboard({ onNavigate }: { onNavigate: (t: AppTab) => void }) {
+export function Dashboard({ onNavigate, user }: { onNavigate: (t: AppTab) => void; user?: UserProfile | null }) {
+  const firstName = user?.name ? user.name.trim().split(" ")[0] : "User";
+  const recentClaims = getClaimsList();
+
+  const handleClaimClick = (claim: ClaimItem) => {
+    const fields = [
+      { label: "Patient Name", value: claim.patient },
+      { label: "Hospital Name", value: claim.hospital },
+      { label: "Total Billed Amount", value: `₹${claim.amount.toLocaleString()}` },
+      { label: "Claim ID", value: claim.id },
+    ];
+    const docName = `${claim.id}_${claim.hospital.split(" ")[0]}_Bill.pdf`;
+    const report = generateAuditFromFields(docName, fields);
+    setActiveAuditReport(report);
+    toast.info(`Opening audit report for ${claim.id}...`);
+    onNavigate("auditor");
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <motion.div variants={stagger(0.06)} initial="hidden" animate="show" className="flex items-center justify-between">
         <motion.div variants={fadeUp}>
-          <h1 className="text-xl font-bold text-foreground">Good morning, Priya</h1>
+          <h1 className="text-xl font-bold text-foreground">Good morning, {firstName}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Here's what's happening with your claims today</p>
         </motion.div>
         <motion.button
@@ -122,9 +141,10 @@ export function Dashboard({ onNavigate }: { onNavigate: (t: AppTab) => void }) {
             </motion.button>
           </div>
           <div className="divide-y divide-border">
-            {claims.slice(0, 4).map((c, i) => (
+            {recentClaims.slice(0, 4).map((c, i) => (
               <motion.div
                 key={c.id}
+                onClick={() => handleClaimClick(c)}
                 initial={{ opacity: 0, x: -12 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 + i * 0.07 }}

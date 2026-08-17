@@ -18,9 +18,24 @@ const navItems: { id: AppTab; label: string; icon: React.ElementType }[] = [
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar({ active, onChange, collapsed }: {
-  active: AppTab; onChange: (t: AppTab) => void; collapsed: boolean;
+function getInitials(name?: string) {
+  if (!name) return "U";
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+export function Sidebar({ active, onChange, collapsed, user }: {
+  active: AppTab;
+  onChange: (t: AppTab) => void;
+  collapsed: boolean;
+  user?: UserProfile | null;
 }) {
+  const userName = user?.name || "Suvarna Raju";
+  const userPlan = user?.plan || "Family Pro";
+
   return (
     <motion.aside
       animate={{ width: collapsed ? 56 : 224 }}
@@ -28,7 +43,7 @@ export function Sidebar({ active, onChange, collapsed }: {
       className="flex flex-col h-full bg-[#0B0D17] border-r border-white/5 overflow-hidden flex-shrink-0"
     >
       <div className={`h-14 flex items-center border-b border-white/5 ${collapsed ? "justify-center px-2" : "px-4"}`}>
-        <motion.div whileHover={{ scale: 1.05 }} className="flex items-center gap-2.5 overflow-hidden">
+        <motion.div whileHover={{ scale: 1.05 }} onClick={() => onChange("dashboard")} className="flex items-center gap-2.5 overflow-hidden cursor-pointer">
           <LogoMark size={collapsed ? 26 : 28} />
           <AnimatePresence>
             {!collapsed && (
@@ -88,14 +103,18 @@ export function Sidebar({ active, onChange, collapsed }: {
       </nav>
 
       <div className={`border-t border-white/5 p-3 flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
-        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-xs font-bold">PS</span>
-        </div>
+        {user?.avatar ? (
+          <img src={user.avatar} alt={userName} className="w-7 h-7 rounded-full object-cover border border-blue-400/40 flex-shrink-0" />
+        ) : (
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-xs font-bold">{getInitials(userName)}</span>
+          </div>
+        )}
         <AnimatePresence>
           {!collapsed && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-w-0">
-              <div className="text-white text-xs font-semibold truncate">Priya Sharma</div>
-              <div className="text-white/40 text-xs truncate">Individual Plan</div>
+              <div className="text-white text-xs font-semibold truncate">{userName}</div>
+              <div className="text-white/40 text-xs truncate">{userPlan}</div>
             </motion.div>
           )}
         </AnimatePresence>

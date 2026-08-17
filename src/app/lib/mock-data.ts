@@ -18,7 +18,7 @@ export const claimStatusData = [
 ];
 
 export const claims = [
-  { id: "CLM-2024-001", patient: "Priya Sharma", hospital: "Apollo Hospitals, Delhi", amount: 182500, status: "approved", date: "15 Jul 2024", insurer: "HDFC ERGO", savings: 24300, type: "Cardiac Surgery" },
+  { id: "CLM-2024-001", patient: "Suvarna Raju", hospital: "Apollo Hospitals, Delhi", amount: 182500, status: "approved", date: "15 Jul 2024", insurer: "HDFC ERGO", savings: 24300, type: "Cardiac Surgery" },
   { id: "CLM-2024-002", patient: "Rahul Mehta", hospital: "Fortis Healthcare, Mumbai", amount: 94200, status: "pending", date: "18 Jul 2024", insurer: "Star Health", savings: 0, type: "Orthopaedic" },
   { id: "CLM-2024-003", patient: "Anita Patel", hospital: "Max Healthcare, Gurugram", amount: 267800, status: "rejected", date: "12 Jul 2024", insurer: "ICICI Lombard", savings: 0, type: "Diabetic Care" },
   { id: "CLM-2024-004", patient: "Vikram Singh", hospital: "Medanta, Gurugram", amount: 445000, status: "in_review", date: "20 Jul 2024", insurer: "Bajaj Allianz", savings: 0, type: "Cancer Treatment" },
@@ -53,8 +53,13 @@ export const activityFeed = [
   { time: "Yesterday", text: "Meena Iyer onboarded — Star Health policy verified", type: "info" },
 ];
 
-export const initialMessages = [
-  { role: "assistant" as const, content: "Hello! I'm your ClaimSense AI Copilot. I can explain medical bills, decode rejection letters, draft appeal letters, and guide you through the claim recovery process. How can I help you today?" },
+export interface ChatMessage {
+  role: "assistant" | "user";
+  content: string;
+}
+
+export const initialMessages: ChatMessage[] = [
+  { role: "assistant", content: "Hello! I'm your ClaimSense AI Copilot. I can explain medical bills, decode rejection letters, draft appeal letters, and guide you through the claim recovery process. How can I help you today?" },
 ];
 
 export const suggestedPrompts = [

@@ -1,9 +1,13 @@
 import { motion, AnimatePresence } from "motion/react";
-import type { AppTab } from "../types";
+import type { AppTab, UserProfile } from "../types";
 import { Sidebar } from "./Sidebar";
 
-export function MobileSidebarDrawer({ active, onChange, open, onClose }: {
-  active: AppTab; onChange: (t: AppTab) => void; open: boolean; onClose: () => void;
+export function MobileSidebarDrawer({ active, onChange, open, onClose, user }: {
+  active: AppTab;
+  onChange: (t: AppTab) => void;
+  open: boolean;
+  onClose: () => void;
+  user?: UserProfile | null;
 }) {
   return (
     <AnimatePresence>
@@ -19,7 +23,7 @@ export function MobileSidebarDrawer({ active, onChange, open, onClose }: {
             transition={{ type: "spring", stiffness: 300, damping: 35 }}
             className="fixed left-0 top-0 bottom-0 z-50 w-64 md:hidden"
           >
-            <Sidebar active={active} onChange={(t) => { onChange(t); onClose(); }} collapsed={false} />
+            <Sidebar active={active} onChange={(t) => { onChange(t); onClose(); }} collapsed={false} user={user} />
           </motion.div>
         </>
       )}
